@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PTCG 練習平台</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: #121212;
+      margin: 0;
+      padding: 10px;
+      color: #ffd700;
+      user-select: none;
+    }
+    .main-layout {
+      display: flex;
+      height: 100vh;
+    }
+    .left-sidebar {
+      width: 200px;
+      background-color: #1e1e1e;
+      padding: 12px;
+      overflow-y: auto;
+    }
+    .game-board {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+ #coin {
+    width: 100px;
+    height: 100px;
+    margin: 20px auto;
+    border-radius: 50%;
+    background-color: gold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: #121212;
+    border: 3px solid #ffd700;
+    box-shadow: 0 0 10px #ffd700;
+    transition: transform 1s;
+  }
+
+  .flip-animation {
+    animation: flip 1s ease-in-out;
+  }
+
+  @keyframes flip {
+    0%   { transform: rotateY(0deg); }
+    50%  { transform: rotateY(1800deg); }
+    100% { transform: rotateY(3600deg); }
+  }
+
+    .coin-button {
+      display: block;
+      width: 100%;
+      padding: 8px;
+      background-color: #3b3b3b;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    #coin-result {
+      margin-top: 12px;
+      font-weight: bold;
+      color: #ffda6a;
+    }
+
+    
+    #battlefield {
+  max-width: 1200px;
+  margin: auto;
+  background: #1e1e1e;
+  border: 2px solid #ffd700;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  /* 🔺缺了 relative 導致 absolute 位置參考錯誤 */
+} 
+    .area {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+    }
+    .zone {
+  background: #2a2a2a;
+  border-radius: 6px;
+  border: 1px solid #444;
+  padding: 8px;
+  min-height: 140px;
+  min-width: 100px;
+  display: flex;
+  flex-wrap: wrap;
+  position: relative;
+}
+
+/* ✅ 補上這段，解決堆疊失效問題 */
+#discard:not(.expanded) {
+  display: block;
+}
+    .zone-title {
+      color: #ffd700;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    #hand .card,
+    .card {
+  height: 140px;
+  width: 100px;
+  background: #333;
+  border-radius: 12px;
+  border: 2px solid #ffd700;
+  color: #ffd700;
+  font-weight: bold;
+  font-size: 14px;
+  position: absolute;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  flex-direction: column;
+  text-align: center;
+  padding: 5px;
+  box-sizing: border-box;
+
+  /* ✅ 加這一行 */
+  transition: transform 0.2s ease;
+}
+
+.card.hover-zoom {
+  transform: scale(5);
+  z-index: 1000;
+}
+
+    .card img {
+      max-width: 80px;
+      max-height: 100px;
+      margin-bottom: 4px;
+      border-radius: 6px;
+      pointer-events: none;
+      user-select: none;
+    }
+    #deck {
+      height: 140px;
+      width: 100px;
+      background: #222;
+      border-radius: 12px;
+      border: 2px solid #ffd700;
+      color: #ffd700;
+      font-weight: bold;
+      font-size: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      margin: 10px;
+    }
+    #deck span {
+      position: absolute;
+      bottom: 6px;
+      right: 8px;
+      font-size: 12px;
+    }
+    #deck-menu {
+      position: absolute;
+      top: 0;
+      left: 110%;
+      background: #2c2c2c;
+      border-radius: 8px;
+      padding: 10px;
+      display: none;
+      flex-direction: column;
+      box-shadow: 0 0 10px #0008;
+      z-index: 2000;
+      border: 1px solid #ffd700;
+      min-width: 200px;
+    }
+    #deck-menu button {
+      background-color: #1b1b1b;
+      border: 1px solid #ffd700;
+      color: #ffd700;
+      font-weight: bold;
+      font-size: 14px;
+      padding: 8px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 6px;
+      user-select: none;
+      white-space: nowrap;
+      text-align: center;
+      width: 100%;
+    }
+    #deck-menu button:hover {
+      background-color: #333;
+    }
+    #prize .card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(calc(var(--offset, 0px)), calc(var(--offset, 0px)));
+    z-index: var(--z, 0);
+    }  
+
+    #prize-counter {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  background-color: #ffd700;
+  color: #121212;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  display: none;
+  z-index: 10;
+}
+#discard .card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
+/* 棄牌區 未展開時 可堆疊 */
+#discard:not(.expanded) {
+  display: block;  /* 移除 flex 排列 */
+}
+#discard:not(.expanded) .card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(calc(var(--offset, 0px)), calc(var(--offset, 0px)));
+  z-index: var(--z, 0);
+}
+
+/* 展開狀態：改為正常流式排列 */
+#discard.expanded {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+#discard.expanded .card {
+  position: static !important;
+  margin: 4px;
+  transform: none !important;
+  z-index: auto !important;
+}
+#discard.expanded .card:hover {
+  outline: 2px solid #ffd700;
+  background-color: #444;
+  cursor: pointer;
+}
+
+.token {
+  width: 40px;
+  height: 40px;
+  background-color: crimson;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+}
+
+#damage-bin {
+  border: 1px dashed #888;
+  padding: 8px;
+  margin-top: 10px;
+}
+    
+  </style>
+</head>
+<body>
+  <div class="main-layout">
+    <div class="left-sidebar">
+      <div id="coin">?</div>
+<button class="coin-button" onclick="flipCoin()">擲硬幣！</button>
+<p id="coin-result">結果會顯示在這裡</p>
+
+<div style="margin-top: 20px;">
+  <h3>傷害指示物</h3>
+  <div id="damage-bin" style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <div class="token" draggable="true" data-damage="10">10</div>
+    <div class="token" draggable="true" data-damage="20">20</div>
+    <div class="token" draggable="true" data-damage="30">30</div>
+    <div class="token" draggable="true" data-damage="50">50</div>
+    <div class="token" draggable="true" data-damage="100">100</div>
+  </div>
+</div>
+    </div>
+
+    
+
+    <div class="game-board">
+      <div id="battlefield">
+        <!-- ⬇️ 你可以將完整 battle 區塊插入這裡 ⬇️ -->
+          <!-- 上區：主戰區、中間是主戰、左邊獎賞、右邊場地 -->
+  <div class="area" id="top-area">
+    <div>
+      <div class="zone-title">獎賞卡區</div>
+<div style="position: relative; display: inline-block;">
+  <div id="prize" class="zone"></div>
+  <div id="prize-counter">x0</div>
+</div>
+    </div>
+    <div>
+      <div class="zone-title">主戰區</div>
+      <div id="active" class="zone"></div>
+    </div>
+    <div>
+      <div class="zone-title">場地卡區</div>
+      <div id="stadium" class="zone"></div>
+    </div>
+  </div>
+
+  <!-- 中區：左牌庫，中間備戰，右棄牌 -->
+  <div class="area" id="middle-area">
+    <div>
+      <div class="zone-title">牌庫</div>
+      <div id="deck">
+        牌庫 <span id="deck-count">0</span>
+        <div id="deck-menu">
+          <button id="peekAndPick">看上面N張並選N張</button>
+          <button id="draw7">抽 7 </button>
+          <button id="draw1">抽 1 </button>
+          <button id="shuffle">洗牌</button>
+          <button id="pickCard">選擇一張卡</button>
+          <button id="moveToPrize">放到獎賞區</button>
+          <button id="returnAllHand">全放回牌庫</button>
+          <button id="returnHandToBottom">放至牌庫下方</button>
+        </div>
+      </div>
+    </div>
+    <div style="flex-grow:1;">
+      <div class="zone-title">備戰區</div>
+      <div id="bench" class="zone"></div>
+    </div>
+    <div>
+      <div class="zone-title">棄牌區</div>
+      <div id="discard" class="zone"></div>
+    </div>
+  </div>
+
+  <!-- 下區：手牌 -->
+  <div class="area" id="bottom-area">
+    <div style="width: 100%;">
+      <div class="zone-title">手牌區</div>
+      <div id="hand" class="zone" style="min-height: 160px;"></div>
+    </div>
+  </div>
+      </div>
+    </div>
+
+
+  </div>
+
+  <script>
+   function flipCoin() {
+    const coin = document.getElementById("coin");
+    const resultText = document.getElementById("coin-result");
+
+    // 清除舊動畫
+    coin.classList.remove("flip-animation");
+    void coin.offsetWidth; // 觸發 reflow 來重新啟動動畫
+
+    // 執行動畫
+    coin.classList.add("flip-animation");
+
+    // 隨機結果（延遲顯示）
+    setTimeout(() => {
+      const isHeads = Math.random() < 0.5;
+      coin.textContent = isHeads ? "正面" : "反面";
+      resultText.textContent = `結果是：${isHeads ? "正面" : "反面"}`;
+    }, 1000); // 配合動畫時間
+  }
+
+
+    
+    let deck = [];
+const zones = {
+  hand: document.getElementById("hand"),
+  bench: document.getElementById("bench"),
+  active: document.getElementById("active"),
+  prize: document.getElementById("prize"),
+  discard: document.getElementById("discard"),
+  stadium: document.getElementById("stadium"),
+};
+
+const zoneCards = { hand: [], bench: [], active: [], prize: [], discard: [], stadium: [] };
+const deckElem = document.getElementById("deck");
+const deckMenu = document.getElementById("deck-menu");
+const deckCountElem = document.getElementById("deck-count");
+
+// 監聽各區域的 dragover 與 drop 事件
+for (const zoneName in zones) {
+  const zoneElem = zones[zoneName];
+  zoneElem.addEventListener("dragover", e => e.preventDefault());
+
+  zoneElem.addEventListener("drop", e => {
+    e.preventDefault();
+    const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+    const fromZone = data.fromZone;
+    const cardObj = data.card;
+
+    // 移除來源區塊的卡牌 DOM 與陣列
+    const idx = zoneCards[fromZone].findIndex(c => c.cardObj['卡名'] === cardObj['卡名']);
+    if (idx !== -1) {
+      const { cardDiv } = zoneCards[fromZone][idx];
+      zones[fromZone].removeChild(cardDiv);
+      zoneCards[fromZone].splice(idx, 1);
+
+      if (fromZone === "prize") updatePrizeStacking();
+      if (fromZone === "discard") updateDiscardStacking();
+    }
+
+    // 從獎賞區移到手牌要用 addCardToZone 特殊處理（如果有需要）
+    if (fromZone === "prize" && zoneName === "hand") {
+      addCardToZone(cardObj, "hand");
+    } else {
+      addCardToZone(cardObj, zoneName);
+    }
+  });
+}
+
+// 牌庫區可拖入（加入牌庫最頂端）
+deckElem.addEventListener("dragover", e => e.preventDefault());
+deckElem.addEventListener("drop", e => {
+  e.preventDefault();
+  const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+  const fromZone = data.fromZone;
+  const cardObj = data.card;
+
+  const idx = zoneCards[fromZone].findIndex(c => c.cardObj['卡名'] === cardObj['卡名']);
+  if (idx !== -1) {
+    const { cardDiv } = zoneCards[fromZone][idx];
+    zones[fromZone].removeChild(cardDiv);
+    zoneCards[fromZone].splice(idx, 1);
+    if (fromZone === "prize") updatePrizeStacking();
+    if (fromZone === "discard") updateDiscardStacking();
+  }
+
+  deck.unshift(cardObj);
+  updateDeckCount();
+});
+
+// 卡牌加入指定區域，建立 DOM、拖曳事件、排版、堆疊更新
+function addCardToZone(cardObj, zoneName) {
+  if (zoneName === "prize" && zoneCards["prize"].length >= 6) {
+    alert("獎賞卡區最多只能放 6 張！");
+    return;
+  }
+
+  const zoneElem = zones[zoneName];
+  const cardDiv = document.createElement("div");
+  cardDiv.className = "card";
+
+  if (zoneName === "prize") {
+    cardDiv.textContent = "背面卡牌";
+  } else {
+    const img = document.createElement("img");
+    img.src = cardObj['圖片網址'] || "https://via.placeholder.com/80x100?text=No+Image";
+    cardDiv.appendChild(img);
+    const nameDiv = document.createElement("div");
+    nameDiv.textContent = cardObj['卡名'] || "未知卡牌";
+    cardDiv.appendChild(nameDiv);
+  }
+
+  cardDiv.draggable = true;
+  cardDiv.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", JSON.stringify({ card: cardObj, fromZone: zoneName }));
+    cardDiv.style.opacity = "0.5";
+  });
+  cardDiv.addEventListener("dragend", () => {
+    cardDiv.style.opacity = "1";
+  });
+
+  zoneElem.appendChild(cardDiv);
+  zoneCards[zoneName].push({ cardObj, cardDiv });
+
+  repositionCards(zoneName);
+
+  if (zoneName === "prize") updatePrizeStacking();
+  if (zoneName === "discard") updateDiscardStacking();
+}
+
+// 獎賞區堆疊及數量顯示
+function updatePrizeStacking() {
+  const prizeCards = zoneCards["prize"].map(c => c.cardDiv);
+  prizeCards.forEach((card, i) => {
+    const offset = i * 5;
+         card.style.setProperty("--offset", `${offset}px`);
+    card.style.setProperty("--z", i);
+  });
+
+  const counter = document.getElementById("prize-counter");
+  if (prizeCards.length > 0) {
+         counter.textContent = `x${prizeCards.length}`;
+    counter.style.display = "block";
+  } else {
+    counter.style.display = "none";
+  }
+}
+
+// 棄牌區堆疊和展開狀態切換
+function updateDiscardStacking() {
+  const discard = document.getElementById("discard");
+  const discardCards = zoneCards["discard"].map(c => c.cardDiv);
+
+  if (!discard.classList.contains("expanded")) {
+    discardCards.forEach((card, index) => {
+      const offset = index * 3;
+      card.style.position = "absolute";
+      card.style.setProperty("--offset", `${offset}px`);
+      card.style.setProperty("--z", index);
+    });
+  } else {
+    discardCards.forEach(card => {
+      card.style.position = "static";
+      card.style.removeProperty("--offset");
+      card.style.removeProperty("--z");
+    });
+  }
+}
+
+// 一般區域卡牌重新排版（除了獎賞區）
+function repositionCards(zoneName) {
+   if (zoneName === "prize" || zoneName === "discard") return; 
+
+  const zoneElem = zones[zoneName];
+  const cards = zoneCards[zoneName].map(c => c.cardDiv);
+  const cardWidth = 110;
+  const startX = Math.max((zoneElem.clientWidth - cards.length * cardWidth) / 2, 0);
+  cards.forEach((card, i) => {
+    card.style.position = "absolute";
+    card.style.left = (startX + i * cardWidth) + "px";
+    card.style.top = "0px";
+  });
+}
+
+// 牌庫數量顯示更新
+function updateDeckCount() {
+  deckCountElem.textContent = deck.length;
+}
+
+// 洗牌
+function shuffleDeck() {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  alert("已洗牌！");
+  updateDeckCount();
+}
+
+// 抽卡（n張）
+function drawCards(n) {
+  for (let i = 0; i < n; i++) {
+    if (deck.length === 0) {
+      alert("牌庫已空！");
+      break;
+    }
+    const card = deck.shift();
+    addCardToZone(card, "hand");
+  }
+  updateDeckCount();
+}
+
+// 輸入卡名找卡並加入手牌
+function pickCardFromDeck() {
+  const name = prompt("輸入卡名：");
+  const idx = deck.findIndex(c => c['卡名'] === name);
+  if (idx !== -1) {
+    const card = deck.splice(idx, 1)[0];
+    addCardToZone(card, "hand");
+    updateDeckCount();
+  } else {
+    alert("找不到這張卡！");
+  }
+}
+
+// 按鈕事件綁定
+document.getElementById("draw7").onclick = e => { e.stopPropagation(); drawCards(7); };
+document.getElementById("draw1").onclick = e => { e.stopPropagation(); drawCards(1); };
+document.getElementById("shuffle").onclick = e => { e.stopPropagation(); shuffleDeck(); };
+document.getElementById("pickCard").onclick = e => { e.stopPropagation(); pickCardFromDeck(); };
+document.getElementById("returnAllHand").onclick = e => {
+  e.stopPropagation();
+  const hand = zoneCards["hand"];
+  hand.forEach(({ cardObj, cardDiv }) => {
+    zones["hand"].removeChild(cardDiv);
+    deck.push(cardObj);
+  });
+  zoneCards["hand"] = [];
+  shuffleDeck();
+};
+
+document.getElementById("returnHandToBottom").onclick = e => {
+  e.stopPropagation();
+  const hand = zoneCards["hand"];
+  if (hand.length === 0) {
+    alert("手牌區沒有卡牌！");
+    return;
+  }
+  hand.forEach(({ cardObj, cardDiv }) => {
+    zones["hand"].removeChild(cardDiv);
+    deck.push(cardObj); // 放牌庫底部
+  });
+  zoneCards["hand"] = [];
+  updateDeckCount();
+};
+document.getElementById("peekAndPick").onclick = e => {
+  e.stopPropagation();
+  if (deck.length === 0) return alert("牌庫空了！");
+  const peekN = parseInt(prompt("查看幾張？"));
+  const pickN = parseInt(prompt("從中選擇幾張？"));
+  if (isNaN(peekN) || isNaN(pickN) || peekN <= 0 || pickN <= 0) return alert("輸入錯誤！");
+  const topCards = deck.slice(0, peekN);
+     const names = topCards.map((c, i) => `${i + 1}: ${c['卡名']}`).join('\n');
+   const indices = prompt(`請輸入要選的卡（用逗號分隔）：\n${names}`);
+  if (!indices) return;
+  const idxs = indices.split(",").map(s => parseInt(s.trim()) - 1).filter(i => i >= 0 && i < peekN);
+  if (idxs.length !== pickN) return alert("選擇錯誤！");
+  // 按大到小順序從牌庫中抽出，避免索引錯亂
+  const picked = idxs.sort((a, b) => b - a).map(i => deck.splice(i, 1)[0]);
+  picked.reverse().forEach(c => addCardToZone(c, "hand"));
+  updateDeckCount();
+};
+document.getElementById("moveToPrize").onclick = e => {
+  e.stopPropagation();
+  if (deck.length === 0) return alert("牌庫已空！");
+  const card = deck.shift();
+  addCardToZone(card, "prize");
+  updateDeckCount();
+};
+
+// 載入外部 CSV 牌組
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vThooKHKUDMsV3KmFG3yzv2npBf5kcRkr3_iOvo7H4spF3u76b4SjwHKNtwP4fJHDMTxr-g1kdgUDJm/pub?output=csv";
+
+fetch(csvUrl)
+  .then(res => res.text())
+  .then(csv => {
+    deck = parseCSV(csv);
+    updateDeckCount();
+    alert("牌組載入成功，共 " + deck.length + " 張卡！");
+  })
+  .catch(err => {
+    console.error("讀取 CSV 發生錯誤：", err);
+    alert("無法載入卡牌資料！");
+  });
+
+// CSV 解析
+function parseCSV(csvText) {
+  const lines = csvText.trim().split("\n");
+  const headers = lines[0].split(",");
+
+  const deck = [];
+  lines.slice(1).forEach(line => {
+    const values = line.split(",");
+    const obj = {};
+    headers.forEach((header, i) => {
+      obj[header.trim()] = values[i]?.trim();
+    });
+    
+    // 過濾掉沒有卡名的空行
+    if (obj['卡名'] && obj['卡名'].trim() !== "" && obj['圖片網址'] && obj['圖片網址'].trim() !== "") {
+      const quantity = parseInt(obj['數量']) || 1;
+      const cardData = {
+        '卡名': obj['卡名'].trim(),
+        '卡組': obj['卡組'] || '',
+        '卡號': obj['卡號'] || '',
+        '圖片網址': obj['圖片網址'].trim()
+      };
+      
+      // 添加指定數量的卡牌
+      for (let i = 0; i < quantity; i++) {
+        deck.push(cardData);
+      }
+    }
+  });
+  
+  return deck;
+}
+
+// 棄牌區點擊事件：展開／收起，並允許點擊卡牌回手牌
+zones["discard"].addEventListener("click", e => {
+  e.stopPropagation();
+  const discard = zones["discard"];
+  const isExpanded = discard.classList.toggle("expanded");
+  updateDiscardStacking();
+
+  if (isExpanded) {
+    zoneCards["discard"].forEach(({ cardDiv, cardObj }) => {
+      cardDiv.onclick = ev => {
+        ev.stopPropagation();
+        zones["discard"].removeChild(cardDiv);
+        zoneCards["discard"] = zoneCards["discard"].filter(c => c.cardDiv !== cardDiv);
+        addCardToZone(cardObj, "hand");
+        discard.classList.remove("expanded");
+        updateDiscardStacking();
+      };
+    });
+  } else {
+    zoneCards["discard"].forEach(({ cardDiv }) => cardDiv.onclick = null);
+  }
+});
+
+// 點擊其他地方收起棄牌區
+window.addEventListener("click", () => {
+  const discard = zones["discard"];
+  if (discard.classList.contains("expanded")) {
+    discard.classList.remove("expanded");
+    updateDiscardStacking();
+    zoneCards["discard"].forEach(({ cardDiv }) => cardDiv.onclick = null);
+  }
+});
+
+// 點擊牌庫切換選單顯示
+deckElem.addEventListener("click", e => {
+  e.stopPropagation();
+  deckMenu.style.display = deckMenu.style.display === "flex" ? "none" : "flex";
+});
+deckMenu.addEventListener("click", e => e.stopPropagation());
+window.addEventListener("click", e => {
+  if (!deckElem.contains(e.target) && !deckMenu.contains(e.target)) {
+    deckMenu.style.display = "none";
+  }
+});
+
+// 滑鼠停留超過3秒才放大
+document.addEventListener("mouseover", function (e) {
+  const target = e.target.closest(".card");
+  if (!target) return;
+
+  // 如果已有計時器就清除
+  if (target.hoverTimer) clearTimeout(target.hoverTimer);
+
+  // 設定3秒後才加上放大 class
+  target.hoverTimer = setTimeout(() => {
+    target.classList.add("hover-zoom");
+  }, 1000);
+});
+
+document.addEventListener("mouseout", function (e) {
+  const target = e.target.closest(".card");
+  if (!target) return;
+
+  // 滑鼠離開時清除計時器並移除放大
+  if (target.hoverTimer) {
+    clearTimeout(target.hoverTimer);
+    target.hoverTimer = null;
+  }
+  target.classList.remove("hover-zoom");
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const battlefield = document.getElementById("battlefield");
+  const damageBin = document.getElementById("damage-bin");
+
+  // 建立並返回一個可拖曳的傷害指示物
+  function createDamageToken(amount) {
+    const token = document.createElement("div");
+    token.className = "token";
+    token.textContent = amount;
+    token.draggable = true;
+    token.id = "token_" + Date.now(); // ✅ 唯一 ID
+    token.style.position = "absolute";
+    token.style.cursor = "move";
+
+    token.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({
+        type: "reposition",
+        amount,
+        id: token.id
+      }));
+    });
+
+    return token;
+  }
+
+  // 🟡 拖曳傷害來源 token（面板上的）- 複製模式
+  document.querySelectorAll(".token").forEach(token => {
+    token.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({
+        type: "damage",
+        amount: token.dataset.damage
+      }));
+      // 不從原位置移除，所以可以重複拖曳
+    });
+  });
+
+  // 🟡 拖曳放到戰場區域
+  battlefield.addEventListener("dragover", e => e.preventDefault());
+  battlefield.addEventListener("drop", e => {
+    e.preventDefault();
+    const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+
+    if (data.type === "damage") {
+      // 從傷害區複製一個新的 token 到戰場
+      const token = createDamageToken(data.amount);
+
+      const rect = battlefield.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      token.style.left = `${x}px`;
+      token.style.top = `${y}px`;
+
+      battlefield.appendChild(token);
+    } else if (data.type === "reposition") {
+      // 移動已放置的 token
+      const token = document.getElementById(data.id);
+      if (token) {
+        const rect = battlefield.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        token.style.left = `${x}px`;
+        token.style.top = `${y}px`;
+      }
+    }
+  });
+
+  // 🟡 拖曳回「傷害區」才會刪除
+  damageBin.addEventListener("dragover", e => {
+    e.preventDefault();
+    // 添加視覺反饋，讓使用者知道可以放開來刪除
+    damageBin.style.backgroundColor = "#444";
+  });
+  
+  damageBin.addEventListener("dragleave", e => {
+    // 移除視覺反饋
+    damageBin.style.backgroundColor = "";
+  });
+  
+  damageBin.addEventListener("drop", e => {
+    e.preventDefault();
+    damageBin.style.backgroundColor = ""; // 移除視覺反饋
+    
+    const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+    if (data.type === "reposition") {
+      const token = document.getElementById(data.id);
+      if (token) {
+        // 添加刪除動畫效果
+        token.style.transition = "opacity 0.3s ease";
+        token.style.opacity = "0";
+        setTimeout(() => {
+          token.remove();
+        }, 300);
+      }
+    }
+  });
+});
+  </script>
+</body>
+</html>
